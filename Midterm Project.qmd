@@ -5,16 +5,56 @@ format: html
 editor: visual
 ---
 
-## Quarto
+## Introduction
 
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
-## Running Code
+## Goal
+
+Floods are among the most destructive natural disasters. In the United States, natural disaster recovery is managed by (FEMA) Federal Emergency Managment Agency.
+
+One interesting aspect of floods is that they can occur almost anywhere. How dangerous are floods? How expensive? Is there any pattern to the kinds of communities that suffer losses from floods?
+
+Assemble a dataset to investigate floods in 2020-2021. Use the data resources below to assemble your data. Clean and organize the data. Write an EDA report.
+
+## Data acquisition and assessment
+
+```{r}
+library(tidyverse)
+library(esquisse)
+library(rfema)
+```
+
+```{r}
+disaster <- read.csv("data/DisasterDeclarationsSummaries.csv", header = T)
+fin_assistance <- read.csv("data/FemaWebDisasterSummaries.csv", header = T)
+storm2020 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2020_c20230927.csv", header = T)
+storm2021 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2021_c20231017.csv", header = T)
+```
+
+```{r}
+summary(disaster)
+```
+
+```{r}
+summary(fin_assistance)
+```
+
+```{r}
+summary(storm2020)
+```
+
+```{r}
+summary(storm2021)
+```
+
+## Data cleaning
 
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
 ```{r}
-1 + 1
+#| echo: false
+
 ```
 
 You can add options to executable code like this
