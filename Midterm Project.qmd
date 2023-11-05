@@ -17,7 +17,7 @@ One interesting aspect of floods is that they can occur almost anywhere. How dan
 
 Assemble a dataset to investigate floods in 2020-2021. Use the data resources below to assemble your data. Clean and organize the data. Write an EDA report.
 
-## Data acquisition and assessment
+## Data Acquisition and Assessment
 
 ```{r}
 library(tidyverse)
@@ -28,8 +28,16 @@ library(rfema)
 ```{r}
 disaster <- read.csv("data/DisasterDeclarationsSummaries.csv", header = T)
 fin_assistance <- read.csv("data/FemaWebDisasterSummaries.csv", header = T)
-storm2020 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2020_c20230927.csv", header = T)
-storm2021 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2021_c20231017.csv", header = T)
+storm_det_2020 <- read.csv("data/StormEvents_details-ftp_v1.0_d2020_c20230927.csv", header = T)
+storm_det_2021 <- read.csv("data/StormEvents_details-ftp_v1.0_d2021_c20231017.csv", header = T)
+storm_fat_2020 <- read.csv("data/StormEvents_fatalities-ftp_v1.0_d2020_c20230927.csv",
+                           header = T)
+storm_fat_2021 <- read.csv("data/StormEvents_fatalities-ftp_v1.0_d2021_c20231017.csv",
+                           header = T)
+storm_loc_2020 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2020_c20230927.csv",
+                           header = T)
+storm_loc_2021 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2021_c20231017.csv",
+                           header = T)
 ```
 
 ```{r}
@@ -48,7 +56,7 @@ summary(storm2020)
 summary(storm2021)
 ```
 
-## Data cleaning
+## Data Cleaning
 
 When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
 
@@ -65,3 +73,7 @@ You can add options to executable code like this
 ```
 
 The `echo: false` option disables the printing of code (only output is displayed).
+
+## **Exploratory Data Analysis (EDA)**
+
+## 
