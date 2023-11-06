@@ -7,13 +7,11 @@ editor: visual
 
 ## Introduction
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Goal
-
 Floods are among the most destructive natural disasters. In the United States, natural disaster recovery is managed by (FEMA) Federal Emergency Managment Agency.
 
 One interesting aspect of floods is that they can occur almost anywhere. How dangerous are floods? How expensive? Is there any pattern to the kinds of communities that suffer losses from floods?
+
+## Goal
 
 Assemble a dataset to investigate floods in 2020-2021. Use the data resources below to assemble your data. Clean and organize the data. Write an EDA report.
 
@@ -51,6 +49,7 @@ library(readr)
 library(lubridate)
 library(scales)
 library(maps)
+library(leaflet)
 library(esquisse)
 library(rfema)
 ```
@@ -225,18 +224,6 @@ head(select(flood_details, BEGIN_DATETIME, END_DATETIME))
 
 ```{r}
 #| echo: false
-# The approximate latitude and longitude range of the United States is from about 24 to 49 degrees latitude and from about -125 to -66 degrees longitude
-# Sift out the data in this range
-flood_details_us <- flood_details |> 
-  filter(BEGIN_LAT >= 24, BEGIN_LAT <= 49,
-         BEGIN_LON >= -125, BEGIN_LON <= -66,
-         END_LAT >= 24, END_LAT <= 49,
-         END_LON >= -125, END_LON <= -66,
-         )
-```
-
-```{r}
-#| echo: false
 # Define a function to convert damage values, taking into account thousands and millions
 convert_damage_value <- function(damage) {
   if (is.na(damage) || damage == "0.00K") {
@@ -291,11 +278,19 @@ flood_fatalities_combined <- bind_rows(flood_fatalities_2020, flood_fatalities_2
 
 ```{r}
 #| echo: false
+# The approximate latitude and longitude range of the United States is from about 24 to 49 degrees latitude and from about -125 to -66 degrees longitude
+# Sift out the data in this range
+flood_details_us <- flood_details |> 
+  filter(BEGIN_LAT >= 24, BEGIN_LAT <= 49,
+         BEGIN_LON >= -125, BEGIN_LON <= -66,
+         END_LAT >= 24, END_LAT <= 49,
+         END_LON >= -125, END_LON <= -66,
+         )
 ```
 
 ```{r}
 #| echo: false
-write.csv(flood_details, file = "flood_details.csv", row.names = FALSE)
+write.csv(flood_details_us, file = "flood_details_us.csv", row.names = FALSE)
 ```
 
 ## **Exploratory Data Analysis (EDA)**
@@ -548,7 +543,7 @@ ggplot(data.frame(Age = age_distribution), aes(x = Age)) +
 
 ```{r}
 # Keep records of known gender
-known_sex <- flood_fatalities_combined %>%
+known_sex <- flood_fatalities_combined |> 
   filter(FATALITY_SEX %in% c('M', 'F'))
 
 # The distribution of deaths by known sex was analyzed
@@ -621,3 +616,38 @@ ggplot(flood_causes, aes(x = "", y = n, fill = FLOOD_CAUSE)) +
 -   计划中的大坝放水（Planned Dam Release）: 4次
 
 由此可见，最常见的洪水原因是重雨，其次是与热带系统结合的重雨。其他原因相比之下较少。
+
+### 不同县受洪水影响的损失
+
+```{r}
+#| warning: false
+# Aggregate the total property damage by county or NWS Public Forecast Zone
+damage_data <- flood_details |> 
+  group_by(CZ_NAME) |> 
+  summarize(Total_Damage = sum(DAMAGE_PROPERTY, na.rm = TRUE),
+            Avg_Lat = mean(BEGIN_LAT, na.rm = TRUE),
+            Avg_Lon = mean(BEGIN_LON, na.rm = TRUE)) |> 
+  ungroup()
+
+# Create a color palette for the damage scale
+pal <- colorNumeric(palette = c("#3A86FF", "#D90429","#FFBE0B"), 
+                    domain = damage_data$Total_Damage)
+
+# Create the leaflet map
+map <- leaflet(damage_data) |> 
+  addTiles() |>   # Add default OpenStreetMap map tiles
+  addCircles(
+    lng = ~Avg_Lon, lat = ~Avg_Lat,
+    weight = 1, opacity = 1,
+    color = ~pal(Total_Damage),
+    radius = ~sqrt(Total_Damage) * 30,  # Adjust this value for better visualization
+    popup = ~paste(CZ_NAME, ": $", Total_Damage),
+    fillOpacity = 0.5
+  ) |> 
+  addLegend("bottomright", pal = pal, values = ~Total_Damage,
+            title = "Total Damage",
+            labFormat = labelFormat(prefix = "$"))
+
+# Print the map
+print(map)
+```
