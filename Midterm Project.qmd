@@ -33,9 +33,9 @@ Assemble a dataset to investigate floods in 2020-2021. Use the data resources be
 
 7.  洪水相关的死亡人数的统计图。
 
-8.  哪些因素导致伤亡(强调我使用了fat数据集）
+8.  伤亡因素分析
 
-9.  如果有的话，洪水强度和原因的分布图。（热力图）
+9.  洪水原因的分布
 
 10. Is there any pattern to the kinds of communities that suffer losses from floods?（做可交互地图）
 
@@ -324,7 +324,48 @@ ggplot(monthly_counts, aes(x = YEAR_MONTH, y = n, fill = n)) +
        x = 'Month',
        y = 'Number of Events') +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+    )
+```
+
+```{r}
+# Convert BEGIN_DATETIME and END_DATETIME to datetime objects
+flood_details <- flood_details |> 
+  mutate(flood_details,BEGIN_DATETIME = as.POSIXct(BEGIN_DATETIME, 
+                                                   format = "%Y-%m-%d %H:%M:%S"),
+                        END_DATETIME = as.POSIXct(END_DATETIME, 
+                                                  format = "%Y-%m-%d %H:%M:%S"))
+
+# Calculate the duration for each flood event in hours
+flood_details <- mutate(flood_details,
+                        DURATION = as.numeric(difftime(END_DATETIME, BEGIN_DATETIME,
+                                                       units = "hours")))
+
+# calculate bins
+flood_details$bins <- cut(flood_details$DURATION, breaks = seq(min(flood_details$DURATION), 
+                                                               max(flood_details$DURATION), 
+                                                               length.out = 31))
+
+# Calculate the count for each bin and perform a logarithmic transformation
+duration_count <- flood_details |> 
+  drop_na(bins) |> 
+  group_by(bins) |> 
+  summarise(count = n()) |> 
+  mutate(log_count = ifelse(count == 0, 0, log10(count)))
+
+# Plot the count after the logarithmic transformation
+ggplot(duration_count, aes(x = bins, y = log_count, fill = bins)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  labs(title = 'Distribution of Flood Durations (Log Scale)',
+       x = 'Duration (Hours)',
+       y = 'Log Count of Flood Events') +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+    )
 ```
 
 ### 洪水的地理位置分析
@@ -543,6 +584,40 @@ ggplot(data.frame(Sex = names(sex_distribution), Count = as.integer(sex_distribu
 
 结合死亡地点、年龄和性别的统计数据，可以推断在洪水事件中，中老年男性和在车辆内或在水中的人群伤亡风险较高。
 
+### 洪水原因分析
+
 ```{r}
-#| echo: false
+# Analyze the flood cause in the 'FLOOD_CAUSE' column
+flood_causes <- flood_details |> 
+  count(FLOOD_CAUSE) |> 
+  arrange(desc(n))
+
+# Create a pie chart of flood causes
+ggplot(flood_causes, aes(x = "", y = n, fill = FLOOD_CAUSE)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar(theta = "y") +
+  scale_fill_manual(values = rainbow(nrow(flood_causes))) + # Use rainbow colors
+  labs(title = 'Proportion of Flood Causes (2020-2021)', 
+       x = "", y = "", fill = "Flood Cause") +
+  theme_void() +
+  theme(legend.position = "right") +
+  theme(plot.title = element_text(hjust = 0.5))
 ```
+
+洪水原因的分析结果如下：
+
+-   重雨（Heavy Rain）: 12373次
+
+-   重雨/热带系统（Heavy Rain / Tropical System）: 293次
+
+-   重雨/雪融（Heavy Rain / Snow Melt）: 248次
+
+-   重雨/烧毁区域（Heavy Rain / Burn Area）: 139次
+
+-   冰堵（Ice Jam）: 27次
+
+-   大坝/堤防破裂（Dam / Levee Break）: 17次
+
+-   计划中的大坝放水（Planned Dam Release）: 4次
+
+由此可见，最常见的洪水原因是重雨，其次是与热带系统结合的重雨。其他原因相比之下较少。
