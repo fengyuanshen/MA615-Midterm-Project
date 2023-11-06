@@ -21,23 +21,23 @@ Assemble a dataset to investigate floods in 2020-2021. Use the data resources be
 
 1.  洪水事件的时间序列图，以显示洪水发生的频率。
 
-2.  洪水事件的地理分布图，以显示洪水在不同地区的分布。
+2.  洪水的持续时间
 
-3.  按州分的洪水事件数量的柱状图。
+3.  洪水事件的地理分布图，以显示洪水在不同地区的分布。
 
-4.  洪水造成的财产和农作物损失的汇总统计图。
+4.  按州分的洪水事件数量的柱状图。
 
-5.  洪水相关的死亡和受伤人数的统计图。
+5.  各州不同类型洪水事件的分布情况
 
-6.  哪些因素导致伤亡
+6.  各州因洪水造成的财产和农作物损失
 
-7.  如果有的话，洪水强度和原因的分布图。
+7.  洪水相关的死亡人数的统计图。
 
-8.  How dangerous are floods?
+8.  哪些因素导致伤亡(强调我使用了fat数据集）
 
-9.  How expensive?
+9.  如果有的话，洪水强度和原因的分布图。（热力图）
 
-10. Is there any pattern to the kinds of communities that suffer losses from floods?
+10. Is there any pattern to the kinds of communities that suffer losses from floods?（做可交互地图）
 
 ## Data Acquisition and Assessment
 
@@ -49,6 +49,8 @@ library(tidyverse)
 library(stringr)
 library(readr)
 library(lubridate)
+library(scales)
+library(maps)
 library(esquisse)
 library(rfema)
 ```
@@ -121,7 +123,13 @@ glimpse(storm_loc_2021)
 
 -   清理地理位置数据，确保纬度和经度格式正确，且位置信息准确。
 
+-   调整DAMAGE_PROPERTY和DAMAGE_CROPS的单位
+
 -   识别并处理异常值或不一致的数据。
+
+-   确定\"flood_details.csv\"中每个洪水事件的 **`EVENT_ID`**。
+
+-   使用这些 **`EVENT_ID`** 在伤亡数据（强调另一个数据集）中筛选出相关的伤亡事件。
 
 ```{r}
 #| echo: false
@@ -149,109 +157,136 @@ head(flood_details)
 
 ```{r}
 #| echo: false
-# 清洗时间数据的函数
+#| warning: false
+# Function of cleaning time data
 clean_time <- function(time_val) {
-  # 转换为字符串，确保是四位数的格式
+  # Convert to a string, making sure it's in a four-digit format
   time_str <- sprintf("%04s", as.integer(time_val))
-  # 验证和格式化时间
+  # Validation and formatting time
   tryCatch({
     time <- hm(time_str)
   }, error = function(e) {
-    time_str <- '0000'  # 如果无效则重置为午夜
+    time_str <- '0000'  # Reset to midnight if invalid
   })
   return(time_str)
 }
 
-# 应用清洗函数到时间列
+# Apply the cleaning function to the time column
 flood_details$BEGIN_TIME <- sapply(flood_details$BEGIN_TIME, clean_time)
 flood_details$END_TIME <- sapply(flood_details$END_TIME, clean_time)
 
-# 创建带有时区的datetime对象的函数
+# Function that creates a datetime object with a time zone
 create_datetime <- function(yearmonth, day, time, tz_string) {
-  # 从年月日和时间创建datetime对象
+  # Create a datetime object from year, month, day and time
   year <- as.integer(substr(yearmonth, 1, 4))
   month <- as.integer(substr(yearmonth, 5, 6))
   hour <- as.integer(substr(time, 1, 2))
   minute <- as.integer(substr(time, 3, 4))
   dt <- make_datetime(year, month, day, hour, minute)
   
-  # 解析时区字符串
+  # Parse time zone string
   tz_info <- strsplit(tz_string, "-")[[1]]
-  tz_name <- tz_info[1]  # 时区名称
-  tz_offset <- as.integer(tz_info[2])  # 时区与UTC的偏移量
+  tz_name <- tz_info[1]  # Time zone name
+  tz_offset <- as.integer(tz_info[2])  # Time zone offset from UTC
   
-  # 将datetime对象本地化到时区
+  # Localizes the datetime object to the time zone
   dt <- with_tz(dt, tz(tz_offset * -60))
   
-  # 将时区转换为UTC
+  # Convert the time zone to UTC
   dt <- with_tz(dt, 'UTC')
   
   return(dt)
 }
 
-# 创建datetime对象并应对潜在错误的安全函数
+# Security functions that create datetime objects and deal with potential errors
 create_datetime_safe <- function(yearmonth, day, time, tz_string) {
   tryCatch({
     create_datetime(yearmonth, day, time, tz_string)
   }, error = function(e) {
-    # 出现任何错误时返回NA或者一些默认的datetime
+    # Return NA or some default datetime on any error
     return(NA)
   })
 }
 
-# 应用函数到开始和结束的datetime列，处理错误
-flood_details <- flood_details %>% 
-  rowwise() %>% 
+# Apply the function to the start and end datetime columns, handling errors
+flood_details <- flood_details |> 
+  rowwise() |> 
   mutate(
-    BEGIN_DATETIME = create_datetime_safe(BEGIN_YEARMONTH, BEGIN_DAY, BEGIN_TIME, CZ_TIMEZONE),
-    END_DATETIME = create_datetime_safe(END_YEARMONTH, END_DAY, END_TIME, CZ_TIMEZONE)
-  ) %>% 
+    BEGIN_DATETIME = create_datetime_safe(BEGIN_YEARMONTH, BEGIN_DAY, 
+                                          BEGIN_TIME, CZ_TIMEZONE),
+    END_DATETIME = create_datetime_safe(END_YEARMONTH, END_DAY, 
+                                        END_TIME, CZ_TIMEZONE)
+    ) |> 
   ungroup()
 
-# 显示新的datetime列和清洗后的时间列
+# Displays the new datetime column and the cleaned time column
 head(select(flood_details, BEGIN_DATETIME, END_DATETIME))
 ```
 
 ```{r}
 #| echo: false
-# 定义要保留的列
+# The approximate latitude and longitude range of the United States is from about 24 to 49 degrees latitude and from about -125 to -66 degrees longitude
+# Sift out the data in this range
+flood_details_us <- flood_details |> 
+  filter(BEGIN_LAT >= 24, BEGIN_LAT <= 49,
+         BEGIN_LON >= -125, BEGIN_LON <= -66,
+         END_LAT >= 24, END_LAT <= 49,
+         END_LON >= -125, END_LON <= -66,
+         )
+```
+
+```{r}
+#| echo: false
+# Define a function to convert damage values, taking into account thousands and millions
+convert_damage_value <- function(damage) {
+  if (is.na(damage) || damage == "0.00K") {
+    return(0)
+  } else if (grepl("K", damage)) {
+    return(as.numeric(sub("K", "", damage)) * 1e3)
+  } else if (grepl("M", damage)) {
+    return(as.numeric(sub("M", "", damage)) * 1e6)
+  } else {
+    return(as.numeric(damage))
+  }
+}
+
+# Apply the conversion function to the DAMAGE_CROPS and DAMAGE_PROPERTY column
+flood_details <- flood_details |> 
+  mutate(DAMAGE_CROPS = sapply(DAMAGE_CROPS, convert_damage_value)) |> 
+  mutate(DAMAGE_PROPERTY = sapply(DAMAGE_PROPERTY, convert_damage_value))
+```
+
+```{r}
+#| echo: false
+# Define the columns to keep
 columns_to_keep <- c('BEGIN_DATETIME', 'END_DATETIME',
                      'BEGIN_YEARMONTH', 'BEGIN_DAY', 'BEGIN_TIME', 
                      'END_YEARMONTH', 'END_DAY', 'END_TIME', 
                      'STATE', 'EVENT_TYPE', 'CZ_TYPE', 'CZ_NAME',
                      'INJURIES_DIRECT', 'INJURIES_INDIRECT', 
-                     'DEATH_DIRECT', 'DEATH_INDIRECT',
+                     'DEATHS_DIRECT', 'DEATHS_INDIRECT',
                      'DAMAGE_PROPERTY', 'DAMAGE_CROPS', 'FLOOD_CAUSE',
                      'BEGIN_LAT', 'BEGIN_LON', 'END_LAT', 'END_LON', 
                      'EVENT_ID')
 
-# 移除不需要的列
+# Remove unwanted columns
 flood_details <- select(flood_details, all_of(columns_to_keep))
 
-# 创建完整的日期时间函数
-create_full_datetime <- function(yearmonth, day, time, start = TRUE) {
-  time_str <- sprintf("%04d", time) # 格式化时间为 HHMM
-  formatted_time <- paste(substr(time_str, 1, 2), substr(time_str, 3, 4), sep = ":")
-  datetime_str <- paste(yearmonth, sprintf("%02d", day), formatted_time)
-  
-  return(ymd_hm(datetime_str, tz = "UTC")) # 这里使用了UTC时区
-}
-
-# 对每一行应用此函数以生成开始和结束日期时间
-flood_details <- flood_details |> 
-  mutate(BEGIN_DATETIME = mapply(create_full_datetime, BEGIN_YEARMONTH, BEGIN_DAY, BEGIN_TIME),
-         END_DATETIME = mapply(create_full_datetime, END_YEARMONTH, END_DAY, END_TIME))
-
-# 移除旧的日期和时间列
-columns_to_drop <- c('BEGIN_YEARMONTH', 'BEGIN_DAY', 'BEGIN_TIME', 'END_YEARMONTH', 'END_DAY', 'END_TIME')
-flood_details <- select(flood_details, -all_of(columns_to_drop))
-
-# 移除纬度或经度数据缺失的记录
-flood_details <- drop_na(flood_details, c('BEGIN_LAT', 'BEGIN_LON', 'END_LAT', 'END_LON'))
+# Removes records with missing latitude or longitude data
+#flood_details <- drop_na(flood_details, c('BEGIN_LAT', 'BEGIN_LON', 'END_LAT', 'END_LON'))
 ```
 
 ```{r}
 #| echo: false
+# Extract the ID of the flood event
+flood_event_ids <- unique(flood_details$EVENT_ID)
+
+# The extracted event ids were used to filter out data on flood-related deaths in 2020 and 2021
+flood_fatalities_2020 <- filter(storm_fat_2020, EVENT_ID %in% flood_event_ids)
+flood_fatalities_2021 <- filter(storm_fat_2021, EVENT_ID %in% flood_event_ids)
+
+# Merge two years of death data
+flood_fatalities_combined <- bind_rows(flood_fatalities_2020, flood_fatalities_2021)
 ```
 
 ```{r}
@@ -265,6 +300,249 @@ write.csv(flood_details, file = "flood_details.csv", row.names = FALSE)
 
 ## **Exploratory Data Analysis (EDA)**
 
-```{r}
+### 洪水的时间分析
 
+```{r}
+# Create a new column that combines year and month for plotting
+flood_details <- flood_details |> 
+  mutate(YEAR_MONTH = floor_date(BEGIN_DATETIME, "month")) |> 
+  mutate(YEAR_MONTH = as.Date(YEAR_MONTH))  # Convert to Date object
+
+# Count the number of flood events for each month
+monthly_counts <- flood_details |> 
+  count(YEAR_MONTH) |> 
+  arrange(YEAR_MONTH)
+
+# Plot the distribution of flood events over months for 2020 and 2021
+ggplot(monthly_counts, aes(x = YEAR_MONTH, y = n, fill = n)) +
+  geom_bar(stat = "identity", alpha = 1) +
+  geom_line(aes(group = 1), color = "black", linewidth = 1, alpha = 0.8) +
+  geom_point(color = "black", alpha = 0.8) +
+  scale_x_date(labels = date_format("%Y-%m"), breaks = date_breaks("1 month")) +
+  scale_fill_gradient(low = "blue", high = "red") + # Define gradient colors here
+  labs(title = 'Number of Flood Events per Month with Trend Line (2020-2021)',
+       x = 'Month',
+       y = 'Number of Events') +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+### 洪水的地理位置分析
+
+```{r}
+# Count the number of flood events by state
+state_counts <- flood_details |> 
+  count(STATE, sort = TRUE) # Sort = TRUE will order the states by the number of events
+
+# Plot the distribution of flood events by state
+ggplot(state_counts, aes(x = reorder(STATE, -n), y = n)) +
+  geom_bar(stat = "identity", aes(fill = n)) +
+  scale_fill_gradient(low = "blue", high = "red") + # Use gradient color for the bars
+  labs(title='Number of Flood Events by State (2020-2021)', 
+       x = 'State', y = 'Number of Events') +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust=1),
+    )
+```
+
+```{r}
+# Create a data box for a map of the United States
+states_map <- map_data("state")
+
+# Draw the map
+ggplot() +
+  geom_polygon(data = states_map, aes(x = long, y = lat, group = group, fill=factor(group)),
+               color="black") +
+  scale_fill_viridis_d(guide = FALSE) +
+  geom_point(data = flood_details_us, aes(x = BEGIN_LON, y = BEGIN_LAT), 
+             color="#D90429", alpha=0.4) +
+  labs(title = 'Geographical Distribution of Flood Events in 2020-2021',
+       x = 'Longitude', y = 'Latitude') +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### 洪水的类型分析
+
+```{r, fig.width = 10, fig.height = 8}
+# Count the number of each event type in each state
+event_type_distribution <- flood_details |> 
+  count(STATE, EVENT_TYPE) |> 
+  pivot_wider(names_from = EVENT_TYPE, values_from = n, values_fill = list(n = 0))
+
+# Converts a data frame from a wide format back to a long format for drawing
+event_type_distribution_long <- event_type_distribution |> 
+  pivot_longer(cols = -STATE, names_to = "EVENT_TYPE", values_to = "Number_of_Events")
+
+# Dinfine color
+custom_colors <- c("Flood" = '#D90429', "Flash Flood" = '#3A86FF', 
+                   "Coastal Flood" = '#FFBE0B', "Lakeshore Flood" = '#FB5607')
+
+# Draw a stacked bar chart
+ggplot(event_type_distribution_long, aes(x = STATE, y = Number_of_Events,
+                                         fill = EVENT_TYPE)) +
+  geom_bar(stat = "identity", position = "stack") +
+  scale_fill_manual(values = custom_colors) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    axis.text.x = element_text(size = 12, angle = 90, vjust = 1, hjust = 1),
+    axis.text.y = element_text(size = 12),
+    ) +
+  labs(x = 'State', y = 'Number of Events', fill = 'Event Type',
+       title = 'Distribution of Flood Event Types by State (2020-2021)')
+```
+
+### 洪水造成的财产和农作物损失以及人员伤亡
+
+```{r, fig.width = 10, fig.height = 8}
+# Use dplyr to group and sum data by state
+state_damage <- flood_details |> 
+  group_by(STATE) |> 
+  summarise(DAMAGE_PROPERTY = sum(DAMAGE_PROPERTY, na.rm = TRUE),
+            DAMAGE_CROPS = sum(DAMAGE_CROPS, na.rm = TRUE)) |> 
+  ungroup()
+
+# Sort data according to DAMAGE_PROPERTY for better visualization
+state_damage_sorted <- state_damage |> 
+  arrange(desc(DAMAGE_PROPERTY))
+
+# draw the plot
+ggplot(state_damage_sorted, aes(x=reorder(STATE, -DAMAGE_PROPERTY))) +
+  geom_bar(aes(y=DAMAGE_PROPERTY/10^6, fill="Property Damage"), 
+           stat="identity", position='dodge') +
+  geom_bar(aes(y=DAMAGE_CROPS/10^6, fill="Crops Damage"), 
+           stat="identity", position='dodge') +
+  labs(title='Property and Crop Damage by State Due to Floods (2020-2021)',
+       x='State', y='Damage (Million USD)', fill="Damage Type") +
+  scale_y_continuous(labels=scales::comma) +
+  scale_fill_manual(values=c("Property Damage"="#D90429", "Crops Damage"="#3A86FF")) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    axis.text.x = element_text(size = 12, angle = 90, vjust = 1, hjust = 1),
+    axis.text.y = element_text(size = 12),
+    legend.position = "bottom"
+  )
+```
+
+```{r}
+# The total number of direct and indirect deaths is grouped by month and year
+monthly_deaths <- flood_details |> 
+  group_by(MONTH = floor_date(YEAR_MONTH, "month")) |> 
+  summarise(DEATHS_DIRECT = sum(DEATHS_DIRECT, na.rm = TRUE),
+            DEATHS_INDIRECT = sum(DEATHS_INDIRECT, na.rm = TRUE))
+
+# Draw the plot
+ggplot(monthly_deaths, aes(x = MONTH)) +
+  geom_line(aes(y = DEATHS_DIRECT, group = 1, colour = "Direct Deaths"), size = 1) +
+  geom_point(aes(y = DEATHS_DIRECT, colour = "Direct Deaths")) +
+  geom_line(aes(y = DEATHS_INDIRECT, group = 1, colour = "Indirect Deaths"), size = 1) +
+  geom_point(aes(y = DEATHS_INDIRECT, colour = "Indirect Deaths")) +
+  scale_colour_manual(values = c("Direct Deaths" = "#3A86FF", "Indirect Deaths" = "#D90429")) +
+  labs(title = 'Monthly Direct and Indirect Deaths from Floods (2020-2021)',
+       x = 'Month', y = 'Number of Deaths', colour = "Death Type") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1),
+    plot.title = element_text(hjust = 0.5),
+    legend.position = "bottom"
+    ) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y")
+  #scale_y_continuous(labels = scales::comma) +
+  #guides(colour = guide_legend(override.aes = list(shape = c(16, 4))))
+```
+
+### 死亡因素分析
+
+```{r}
+# The location distribution of flood-related deaths was analyzed
+location_distribution <- table(flood_fatalities_combined$FATALITY_LOCATION)
+
+# Convert table objects to data boxes for use in ggplot
+location_distribution_df <- as.data.frame(location_distribution)
+
+# Name the data frame column
+names(location_distribution_df) <- c('FATALITY_LOCATION', 'Number_of_Fatalities')
+
+# Draw the plot
+ggplot(location_distribution_df, aes(x=reorder(FATALITY_LOCATION, Number_of_Fatalities),
+                                     y = Number_of_Fatalities, fill=FATALITY_LOCATION)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values=c('#8338EC','#FDF0D5','#FF006E','#FFBE0B','#3A86FF',
+                             '#780000','#669BBC','#FB5607','#003049','#C1121F')) +
+  theme_minimal() +
+  labs(title = 'Distribution of Fatality Locations for Flood-Related Fatalities',
+       x = 'Fatality Location', y = 'Number of Fatalities') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  coord_flip()  
+```
+
+洪水相关的死亡地点分布显示，\"Vehicle/Towed Trailer\"（车辆/拖车）是最常见的伤亡地点，其次是\"In Water\"（在水中）和\"Permanent Home\"（永久性住所）。我们还可以看到，开放区域和不明确的地点也有相当数量的伤亡。
+
+接下来，我们将分析与年龄和性别相关的统计数据，这可能有助于我们进一步了解哪些人群在洪水事件中最容易受害。​​
+
+```{r}
+# The age distribution of the deceased was analyzed
+age_distribution <- na.omit(flood_fatalities_combined$FATALITY_AGE)
+age_distribution <- as.integer(age_distribution)
+
+# Plot the age distribution histogram
+ggplot(data.frame(Age = age_distribution), aes(x = Age)) +
+  geom_histogram(binwidth = 10, fill = "#FEE440", color = "black") +
+  scale_fill_viridis_d() +
+  labs(title = 'Age Distribution of Flood-Related Fatalities(2020-2021)',
+       x = 'Age',
+       y = 'Number of Fatalities') +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_x_continuous(breaks = seq(0, 90, by = 10))
+```
+
+```{r}
+# Keep records of known gender
+known_sex <- flood_fatalities_combined %>%
+  filter(FATALITY_SEX %in% c('M', 'F'))
+
+# The distribution of deaths by known sex was analyzed
+sex_distribution <- table(known_sex$FATALITY_SEX)
+
+# Draw a sex bar chart
+ggplot(data.frame(Sex = names(sex_distribution), Count = as.integer(sex_distribution)), 
+       aes(x = Sex, y = Count, fill = Sex)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("M" = "#3A86FF", "F" = "#D90429")) +
+  labs(title = 'Sex Distribution of Flood-Related Fatalities',
+       x = 'Sex',
+       y = 'Number of Fatalities') +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+洪水相关的死亡年龄分布表明：
+
+-   平均年龄约为 44 岁。
+
+-   死亡人数在各个年龄段都有发生，但特别是在中老年人群中较为常见。
+
+-   最年长的受害者年龄为 86 岁，而最年轻的为 1 岁。
+
+性别分布显示：
+
+-   男性死亡人数为 114 人。
+
+-   女性死亡人数为 92 人。
+
+由此我们可以看出，在洪水相关的死亡事件中，男性的死亡人数略多于女性。
+
+结合死亡地点、年龄和性别的统计数据，可以推断在洪水事件中，中老年男性和在车辆内或在水中的人群伤亡风险较高。
+
+```{r}
+#| echo: false
 ```
