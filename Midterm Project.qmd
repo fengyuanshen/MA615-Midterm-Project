@@ -17,15 +17,44 @@ One interesting aspect of floods is that they can occur almost anywhere. How dan
 
 Assemble a dataset to investigate floods in 2020-2021. Use the data resources below to assemble your data. Clean and organize the data. Write an EDA report.
 
+感兴趣的图：
+
+1.  洪水事件的时间序列图，以显示洪水发生的频率。
+
+2.  洪水事件的地理分布图，以显示洪水在不同地区的分布。
+
+3.  按州分的洪水事件数量的柱状图。
+
+4.  洪水造成的财产和农作物损失的汇总统计图。
+
+5.  洪水相关的死亡和受伤人数的统计图。
+
+6.  哪些因素导致伤亡
+
+7.  如果有的话，洪水强度和原因的分布图。
+
+8.  How dangerous are floods?
+
+9.  How expensive?
+
+10. Is there any pattern to the kinds of communities that suffer losses from floods?
+
 ## Data Acquisition and Assessment
 
+这一节介绍一下各个数据集长什么样，可以从哪些角度分析
+
 ```{r}
+#| echo: false
 library(tidyverse)
+library(stringr)
+library(readr)
+library(lubridate)
 library(esquisse)
 library(rfema)
 ```
 
 ```{r}
+#| echo: false
 disaster <- read.csv("data/DisasterDeclarationsSummaries.csv", header = T)
 fin_assistance <- read.csv("data/FemaWebDisasterSummaries.csv", header = T)
 storm_det_2020 <- read.csv("data/StormEvents_details-ftp_v1.0_d2020_c20230927.csv", header = T)
@@ -41,39 +70,201 @@ storm_loc_2021 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2021_c20231017.
 ```
 
 ```{r}
-summary(disaster)
+#| echo: false
+glimpse(disaster)
 ```
 
 ```{r}
-summary(fin_assistance)
+#| echo: false
+glimpse(fin_assistance)
 ```
 
 ```{r}
-summary(storm2020)
+#| echo: false
+glimpse(storm_det_2020)
 ```
 
 ```{r}
-summary(storm2021)
+#| echo: false
+glimpse(storm_det_2021)
+```
+
+```{r}
+#| echo: false
+glimpse(storm_fat_2020)
+```
+
+```{r}
+#| echo: false
+glimpse(storm_fat_2021)
+```
+
+```{r}
+#| echo: false
+glimpse(storm_loc_2020)
+```
+
+```{r}
+#| echo: false
+glimpse(storm_loc_2021)
 ```
 
 ## Data Cleaning
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+-   筛选出 2020 和 2021 年的洪水事件，并将数据合并
+
+-   检查数据的完整性，处理缺失值。
+
+-   确定分析所需的关键字段，并删除不相关的列以简化数据集。
+
+-   格式化日期和时间字段，确保它们能正确地表示事件的时间线。(这段浓墨重彩讲解）
+
+-   清理地理位置数据，确保纬度和经度格式正确，且位置信息准确。
+
+-   识别并处理异常值或不一致的数据。
 
 ```{r}
 #| echo: false
+# Define flood-related keywords
+flood_related_keywords <- c('Flood', 'Coastal Flood', 'Flash Flood', 'Lakeshore Flood')
 
+# Construct a regular expression, ignoring case
+flood_pattern <- paste0('(?i)', paste(flood_related_keywords, collapse = "|"))
+
+# Screening for flood-related events in detailed data for 2020
+flood_det_2020 <- storm_det_2020 |> 
+  filter(str_detect(EVENT_TYPE, flood_pattern))
+
+# Screening for flood-related events in detailed data for 2021
+flood_det_2021 <- storm_det_2021 |> 
+  filter(str_detect(EVENT_TYPE, flood_pattern))
+
+# Merge two years of detailed flood data
+flood_details <- bind_rows(flood_det_2020, flood_det_2021)
+
+# Display the shape and header of the merged flood detail data to ensure correctness
+dim(flood_details)
+head(flood_details)
 ```
-
-You can add options to executable code like this
 
 ```{r}
 #| echo: false
-2 * 2
+# 清洗时间数据的函数
+clean_time <- function(time_val) {
+  # 转换为字符串，确保是四位数的格式
+  time_str <- sprintf("%04s", as.integer(time_val))
+  # 验证和格式化时间
+  tryCatch({
+    time <- hm(time_str)
+  }, error = function(e) {
+    time_str <- '0000'  # 如果无效则重置为午夜
+  })
+  return(time_str)
+}
+
+# 应用清洗函数到时间列
+flood_details$BEGIN_TIME <- sapply(flood_details$BEGIN_TIME, clean_time)
+flood_details$END_TIME <- sapply(flood_details$END_TIME, clean_time)
+
+# 创建带有时区的datetime对象的函数
+create_datetime <- function(yearmonth, day, time, tz_string) {
+  # 从年月日和时间创建datetime对象
+  year <- as.integer(substr(yearmonth, 1, 4))
+  month <- as.integer(substr(yearmonth, 5, 6))
+  hour <- as.integer(substr(time, 1, 2))
+  minute <- as.integer(substr(time, 3, 4))
+  dt <- make_datetime(year, month, day, hour, minute)
+  
+  # 解析时区字符串
+  tz_info <- strsplit(tz_string, "-")[[1]]
+  tz_name <- tz_info[1]  # 时区名称
+  tz_offset <- as.integer(tz_info[2])  # 时区与UTC的偏移量
+  
+  # 将datetime对象本地化到时区
+  dt <- with_tz(dt, tz(tz_offset * -60))
+  
+  # 将时区转换为UTC
+  dt <- with_tz(dt, 'UTC')
+  
+  return(dt)
+}
+
+# 创建datetime对象并应对潜在错误的安全函数
+create_datetime_safe <- function(yearmonth, day, time, tz_string) {
+  tryCatch({
+    create_datetime(yearmonth, day, time, tz_string)
+  }, error = function(e) {
+    # 出现任何错误时返回NA或者一些默认的datetime
+    return(NA)
+  })
+}
+
+# 应用函数到开始和结束的datetime列，处理错误
+flood_details <- flood_details %>% 
+  rowwise() %>% 
+  mutate(
+    BEGIN_DATETIME = create_datetime_safe(BEGIN_YEARMONTH, BEGIN_DAY, BEGIN_TIME, CZ_TIMEZONE),
+    END_DATETIME = create_datetime_safe(END_YEARMONTH, END_DAY, END_TIME, CZ_TIMEZONE)
+  ) %>% 
+  ungroup()
+
+# 显示新的datetime列和清洗后的时间列
+head(select(flood_details, BEGIN_DATETIME, END_DATETIME))
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+```{r}
+#| echo: false
+# 定义要保留的列
+columns_to_keep <- c('BEGIN_DATETIME', 'END_DATETIME',
+                     'BEGIN_YEARMONTH', 'BEGIN_DAY', 'BEGIN_TIME', 
+                     'END_YEARMONTH', 'END_DAY', 'END_TIME', 
+                     'STATE', 'EVENT_TYPE', 'CZ_TYPE', 'CZ_NAME',
+                     'INJURIES_DIRECT', 'INJURIES_INDIRECT', 
+                     'DEATH_DIRECT', 'DEATH_INDIRECT',
+                     'DAMAGE_PROPERTY', 'DAMAGE_CROPS', 'FLOOD_CAUSE',
+                     'BEGIN_LAT', 'BEGIN_LON', 'END_LAT', 'END_LON', 
+                     'EVENT_ID')
+
+# 移除不需要的列
+flood_details <- select(flood_details, all_of(columns_to_keep))
+
+# 创建完整的日期时间函数
+create_full_datetime <- function(yearmonth, day, time, start = TRUE) {
+  time_str <- sprintf("%04d", time) # 格式化时间为 HHMM
+  formatted_time <- paste(substr(time_str, 1, 2), substr(time_str, 3, 4), sep = ":")
+  datetime_str <- paste(yearmonth, sprintf("%02d", day), formatted_time)
+  
+  return(ymd_hm(datetime_str, tz = "UTC")) # 这里使用了UTC时区
+}
+
+# 对每一行应用此函数以生成开始和结束日期时间
+flood_details <- flood_details |> 
+  mutate(BEGIN_DATETIME = mapply(create_full_datetime, BEGIN_YEARMONTH, BEGIN_DAY, BEGIN_TIME),
+         END_DATETIME = mapply(create_full_datetime, END_YEARMONTH, END_DAY, END_TIME))
+
+# 移除旧的日期和时间列
+columns_to_drop <- c('BEGIN_YEARMONTH', 'BEGIN_DAY', 'BEGIN_TIME', 'END_YEARMONTH', 'END_DAY', 'END_TIME')
+flood_details <- select(flood_details, -all_of(columns_to_drop))
+
+# 移除纬度或经度数据缺失的记录
+flood_details <- drop_na(flood_details, c('BEGIN_LAT', 'BEGIN_LON', 'END_LAT', 'END_LON'))
+```
+
+```{r}
+#| echo: false
+```
+
+```{r}
+#| echo: false
+```
+
+```{r}
+#| echo: false
+write.csv(flood_details, file = "flood_details.csv", row.names = FALSE)
+```
 
 ## **Exploratory Data Analysis (EDA)**
 
-## 
+```{r}
+
+```
