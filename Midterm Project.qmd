@@ -1,48 +1,67 @@
 ---
-title: "Midterm Project"
-author: "Fengyuan Shen"
+title: "MA615 Midterm Project - Flood Analysis"
+author: "Fengyuan Shen (Vincent)"
+date: 2023 Nov 6
 format: html
-editor: visual
+engine: knitr
 ---
 
 ## Introduction
 
-Floods are among the most destructive natural disasters. In the United States, natural disaster recovery is managed by (FEMA) Federal Emergency Managment Agency.
+Floods are one of the most common and destructive natural disasters in the world. In the United States, floods not only threaten people's lives, but also have a significant impact on society and economy. Many parts of the world experienced severe flood events during 2020-2021, which highlighted the need for a deep understanding of flood impacts.
 
-One interesting aspect of floods is that they can occur almost anywhere. How dangerous are floods? How expensive? Is there any pattern to the kinds of communities that suffer losses from floods?
+This report aims to examine the dangers of flooding, the economic costs, and what types of communities are more likely to suffer damage through exploratory data analysis of data provided by National Oceanic and Atmospheric Administration (NOAA) and the Federal Emergency Management Agency (FEMA).
 
 ## Goal
 
-Assemble a dataset to investigate floods in 2020-2021. Use the data resources below to assemble your data. Clean and organize the data. Write an EDA report.
+This report aims to achieve the following research objectives through an in-depth analysis of flood data for 2020-2021:
 
-感兴趣的图：
+1.  Flood frequency analysis - Create time series maps of flood events that clearly show the frequency of floods to identify possible seasonal or long-term trends.
 
-1.  洪水事件的时间序列图，以显示洪水发生的频率。
+2.  Flood Duration Assessment - Assess the duration of flood events and their range of variation to understand the potential impact of the persistence of different flood types on communities.
 
-2.  洪水的持续时间
+3.  State-level Flood Event analysis - Create a bar chart of the number of flood events by state to compare the frequency and severity of flood events across states.
 
-3.  洪水事件的地理分布图，以显示洪水在不同地区的分布。
+4.  Geographic Distribution Research - The production of geographic maps of flood events to visualize patterns of flood occurrence and high-risk areas in different regions.
 
-4.  按州分的洪水事件数量的柱状图。
+5.  Flood Type and Distribution Exploration - Analyze the distribution of different types of flood events in each state to reveal the possible flood risk factors in a specific area.
 
-5.  各州不同类型洪水事件的分布情况
+6.  Quantification of Economic losses - calculates and analyzes property and crop losses due to flooding in each state and assesses regional differences in economic impact.
 
-6.  各州因洪水造成的财产和农作物损失
+7.  Casualty Statistics and Factor analysis - Create a statistical map of flood-related deaths and explore the main factors leading to casualties to improve future warning systems and emergency response measures.
 
-7.  洪水相关的死亡人数的统计图。
+8.  Flood Cause Distribution Studies - Analyze the cause distribution of flood occurrence in different regions and identify the dominant natural or human factors.
 
-8.  伤亡因素分析
+9.  Community impact Model analysis - Develop interactive maps to explore the types of communities affected by flooding most.
 
-9.  洪水原因的分布
-
-10. Is there any pattern to the kinds of communities that suffer losses from floods?（做可交互地图）
+This report aims to provide actionable insights through detailed data analysis to help organizations and individuals take targeted measures to reduce direct and indirect losses from flood disasters.
 
 ## Data Acquisition and Assessment
 
-这一节介绍一下各个数据集长什么样，可以从哪些角度分析
+This report uses data sets from the National Oceanic and Atmospheric Administration (NOAA) and the Federal Emergency Management Agency (FEMA), It includes records of flood events and other disasters across the United States from 2020 to 2021.
+
+**Datasets overview**
+
+1.  Disaster declarations summary data (DisasterDeclarationsSummaries.csv) :
+
+    This data contains the disaster number, type, date, and affected area, which can be used to determine the frequency and location of flood events. Data fields such as disaster type and date help analyze seasonal and long-term trends in flooding.
+
+2.  FEMA flood compensation overview data (FemaWebDisasterSummaries.csv) :
+
+    Data were provided on the amount of approved personal aid and public aid funding, helping to quantify the economic damage caused by the floods. The loss data for each state can be used to compare losses across states.
+
+3.  Storm event details (StormEvents_details-ftp_v1.0_d2020_c20230927.csv, StormEvents_details-ftp_v1.0_d2021_c20231017.csv):
+
+    Including specific storm event details, such as start and end dates, death tolls, and property damage, is critical to understanding the duration and impact of flooding. The data helps create a geographic map of storm events and identify areas at higher risk.
+
+4.  Storm event death record data (StormEvents_fatalities-ftp_v1.0_d2020_c20230927.csv, StormEvents_fatalities-ftp_v1.0_d2021_c20231017.csv):
+
+    Detailed information on death events, including the type and location of death, is recorded, which is useful for analyzing deaths and related factors caused by floods. It can help create maps that reflect flood fatality statistics and explore the main factors that lead to casualties.
 
 ```{r}
 #| echo: false
+#| message: false
+#| results: hide
 library(tidyverse)
 library(stringr)
 library(readr)
@@ -50,12 +69,10 @@ library(lubridate)
 library(scales)
 library(maps)
 library(leaflet)
-library(esquisse)
-library(rfema)
 ```
 
 ```{r}
-#| echo: false
+#| results: hide
 disaster <- read.csv("data/DisasterDeclarationsSummaries.csv", header = T)
 fin_assistance <- read.csv("data/FemaWebDisasterSummaries.csv", header = T)
 storm_det_2020 <- read.csv("data/StormEvents_details-ftp_v1.0_d2020_c20230927.csv", header = T)
@@ -72,66 +89,96 @@ storm_loc_2021 <- read.csv("data/StormEvents_locations-ftp_v1.0_d2021_c20231017.
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(disaster)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(fin_assistance)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_det_2020)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_det_2021)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_fat_2020)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_fat_2021)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_loc_2020)
 ```
 
 ```{r}
 #| echo: false
+#| results: hide
 glimpse(storm_loc_2021)
 ```
 
 ## Data Cleaning
 
--   筛选出 2020 和 2021 年的洪水事件，并将数据合并
+1.  **Keyword Filtering**:
 
--   检查数据的完整性，处理缺失值。
+    Defined a list of keywords related to floods and constructed a regular expression to identify flood-related events from the storm details data for the years **`2020`** and **`2021`**.
 
--   确定分析所需的关键字段，并删除不相关的列以简化数据集。
+2.  **Data Merging**:
 
--   格式化日期和时间字段，确保它们能正确地表示事件的时间线。(这段浓墨重彩讲解）
+    Merged **`StormEvents_details-ftp_v1.0_d2020_c20230927.csv`** and **`data/StormEvents_details-ftp_v1.0_d2021_c20231017.csv`** into a single data frame to consolidate the information for analysis.
 
--   清理地理位置数据，确保纬度和经度格式正确，且位置信息准确。
+3.  **Time Data Cleaning**:
 
--   调整DAMAGE_PROPERTY和DAMAGE_CROPS的单位
+    The **`clean_time`** function formats time values into a consistent four-digit representation (HHMM). If a time value is invalid, it defaults to '0000', representing midnight.
 
--   识别并处理异常值或不一致的数据。
+4.  **Datetime Creation and Localization**:
 
--   确定\"flood_details.csv\"中每个洪水事件的 **`EVENT_ID`**。
+    Using the **`create_datetime`** function, datetime objects are created from date and time information, incorporating time zone details for accuracy.
 
--   使用这些 **`EVENT_ID`** 在伤亡数据（强调另一个数据集）中筛选出相关的伤亡事件。
+    The **`create_datetime_safe`** function wraps **`create_datetime`** in error handling to ensure robust datetime creation. If any errors occur, it returns **`NA`** to avoid processing disruptions.
+
+    These functions are applied to the **`BEGIN_TIME`** and **`END_TIME`** columns in the **`flood_details`** dataframe to create **`BEGIN_DATETIME`** and **`END_DATETIME`** columns, respectively, with the correct datetime objects for each flood event.
+
+5.  **Damage Value Conversion**:
+
+    Implemented a function to convert reported damage values from strings to numeric values, accounting for the use of "K" (thousands) and "M" (millions) in the data, and applied this function to the **`DAMAGE_PROPERTY`** and **`DAMAGE_CROPS`** columns.
+
+6.  **Column Selection and Cleaning**:
+
+    Selected a specific set of columns to retain for the analysis, removing any that were not required, to streamline the data frame
+
+7.  **Data Filtering by Geographic Range**:
+
+    Applied a geographic filter to retain data points that fall within the approximate latitude and longitude range of the United States.
+
+8.  **Event ID Extraction**:
+
+    Extracted unique event IDs for flood events and used these to filter related fatality data for both 2020 and 2021.
+
+9.  **Combining Fatality Data**:
+
+    Merged **`data/StormEvents_fatalities-ftp_v1.0_d2020_c20230927.csv`** and **`StormEvents_fatalities-ftp_v1.0_d2021_c20231017.csv`** into a combined data frame for comprehensive analysis of flood-related fatalities.
 
 ```{r}
-#| echo: false
+#| results: hide
 # Define flood-related keywords
 flood_related_keywords <- c('Flood', 'Coastal Flood', 'Flash Flood', 'Lakeshore Flood')
 
@@ -155,8 +202,8 @@ head(flood_details)
 ```
 
 ```{r}
-#| echo: false
 #| warning: false
+#| results: hide
 # Function of cleaning time data
 clean_time <- function(time_val) {
   # Convert to a string, making sure it's in a four-digit format
@@ -223,7 +270,7 @@ head(select(flood_details, BEGIN_DATETIME, END_DATETIME))
 ```
 
 ```{r}
-#| echo: false
+#| results: hide
 # Define a function to convert damage values, taking into account thousands and millions
 convert_damage_value <- function(damage) {
   if (is.na(damage) || damage == "0.00K") {
@@ -244,7 +291,7 @@ flood_details <- flood_details |>
 ```
 
 ```{r}
-#| echo: false
+#| results: hide
 # Define the columns to keep
 columns_to_keep <- c('BEGIN_DATETIME', 'END_DATETIME',
                      'BEGIN_YEARMONTH', 'BEGIN_DAY', 'BEGIN_TIME', 
@@ -264,7 +311,7 @@ flood_details <- select(flood_details, all_of(columns_to_keep))
 ```
 
 ```{r}
-#| echo: false
+#| results: hide
 # Extract the ID of the flood event
 flood_event_ids <- unique(flood_details$EVENT_ID)
 
@@ -277,7 +324,7 @@ flood_fatalities_combined <- bind_rows(flood_fatalities_2020, flood_fatalities_2
 ```
 
 ```{r}
-#| echo: false
+#| results: hide
 # The approximate latitude and longitude range of the United States is from about 24 to 49 degrees latitude and from about -125 to -66 degrees longitude
 # Sift out the data in this range
 flood_details_us <- flood_details |> 
@@ -290,12 +337,25 @@ flood_details_us <- flood_details |>
 
 ```{r}
 #| echo: false
-write.csv(flood_details_us, file = "flood_details_us.csv", row.names = FALSE)
+#| results: hide
+# write.csv(flood_details_us, file = "flood_details_us.csv", row.names = FALSE)
+```
+
+Below shows the cleaned data.
+
+```{r}
+# Show the cleaned data
+head(flood_details)
+glimpse(flood_details)
 ```
 
 ## **Exploratory Data Analysis (EDA)**
 
-### 洪水的时间分析
+After data-cleaning process, a cleaned data set is ready for use.
+
+This section will be divided into 7 parts so as to analyze flood impacts (such as dangers of flooding, the economic costs, etc.) from different aspects.
+
+### 1. Flood frequency analysis
 
 ```{r}
 # Create a new column that combines year and month for plotting
@@ -324,6 +384,12 @@ ggplot(monthly_counts, aes(x = YEAR_MONTH, y = n, fill = n)) +
     axis.text.x = element_text(angle = 90, hjust = 1)
     )
 ```
+
+This graph plots the number of flood events in the United States for each month in 2020-2021, with darker columns indicating more floods occurring and the black lines being trend lines.
+
+On average, 534 flood events occur each month with a standard deviation of 341.85, with the highest month having 1420 flood events.
+
+It is obvious from the figure that summer (May to September) is the most frequent period of flood events, while the number of floods occurs less in winter. This may indicate a seasonal trend or a concentration of extreme weather events over a specific time period.
 
 ```{r}
 # Convert BEGIN_DATETIME and END_DATETIME to datetime objects
@@ -363,7 +429,11 @@ ggplot(duration_count, aes(x = bins, y = log_count, fill = bins)) +
     )
 ```
 
-### 洪水的地理位置分析
+This graph describes the distributions of flood duration, and the ordinate is the logarithmic count.
+
+The duration of flood events varies widely, from a few hours to a few days. Most flood events last no more than a day, but in extreme cases, some flood events can last more than a month, reflecting the potential lasting impact of different flood types on communities.
+
+### 2. Geographic distribution of flood events
 
 ```{r}
 # Count the number of flood events by state
@@ -383,7 +453,10 @@ ggplot(state_counts, aes(x = reorder(STATE, -n), y = n)) +
     )
 ```
 
+This graph shows the number of flood events by state. From the graph, Virginia, Missouri and Texas are the top three states with the highest number of flood events. This may be related to the climatic characteristics, topography and hydrological conditions of these areas.
+
 ```{r}
+#| warning: false
 # Create a data box for a map of the United States
 states_map <- map_data("state")
 
@@ -400,7 +473,11 @@ ggplot() +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-### 洪水的类型分析
+Based on the latitude and longitude coordinates of the data set, we can project the location of the flood to a map of the United States, with a red dot representing a flood event.
+
+As we can see from the chart, the longitude of the flood event ranges from approximately 124.64°W to 67.42°W, with an average longitude of about 87.96°W. This reflects the greater concentration of flood events in the eastern and central United States.
+
+### 3. Exploration of flood types and distribution
 
 ```{r, fig.width = 10, fig.height = 8}
 # Count the number of each event type in each state
@@ -433,7 +510,11 @@ ggplot(event_type_distribution_long, aes(x = STATE, y = Number_of_Events,
        title = 'Distribution of Flood Event Types by State (2020-2021)')
 ```
 
-### 洪水造成的财产和农作物损失以及人员伤亡
+This chart explores how different types of flooding are distributed across U.S. states.
+
+Different types of flood events are unevenly distributed across states. Some states may experience specific types of flooding more frequently, which may be due to state-specific environmental factors and climate conditions.
+
+### 4. Property and crop damage and loss of life due to flood events
 
 ```{r, fig.width = 10, fig.height = 8}
 # Use dplyr to group and sum data by state
@@ -468,7 +549,10 @@ ggplot(state_damage_sorted, aes(x=reorder(STATE, -DAMAGE_PROPERTY))) +
   )
 ```
 
+As the chart shows, the floods caused significant property damage in cities such as New York, Louisiana, and Michigan, and also had a great impact on agricultural production in Texas. Total property damage was about \$3.385 billion and crop damage was more than \$131 million.
+
 ```{r}
+#| warning: false
 # The total number of direct and indirect deaths is grouped by month and year
 monthly_deaths <- flood_details |> 
   group_by(MONTH = floor_date(YEAR_MONTH, "month")) |> 
@@ -491,11 +575,11 @@ ggplot(monthly_deaths, aes(x = MONTH)) +
     legend.position = "bottom"
     ) +
   scale_x_date(date_breaks = "1 month", date_labels = "%b %Y")
-  #scale_y_continuous(labels = scales::comma) +
-  #guides(colour = guide_legend(override.aes = list(shape = c(16, 4))))
 ```
 
-### 死亡因素分析
+This graph shows the number of human deaths each month caused directly or indirectly by floods. More than 200 deaths were attributed to the flooding events, with the death toll peaking during the summer of 2021.
+
+### 5. Analysis of death factor
 
 ```{r}
 # The location distribution of flood-related deaths was analyzed
@@ -520,9 +604,9 @@ ggplot(location_distribution_df, aes(x=reorder(FATALITY_LOCATION, Number_of_Fata
   coord_flip()  
 ```
 
-洪水相关的死亡地点分布显示，\"Vehicle/Towed Trailer\"（车辆/拖车）是最常见的伤亡地点，其次是\"In Water\"（在水中）和\"Permanent Home\"（永久性住所）。我们还可以看到，开放区域和不明确的地点也有相当数量的伤亡。
+The distribution of flood-related deaths shows that "Vehicle/Towed Trailer" was the most common place of death or injury, followed by "In Water" and "Permanent Home". We can also see that there are a considerable number of casualties in open areas.
 
-接下来，我们将分析与年龄和性别相关的统计数据，这可能有助于我们进一步了解哪些人群在洪水事件中最容易受害。​​
+Next, we will analyze statistics related to age and gender, which may help us further understand which populations are most vulnerable during flood events.
 
 ```{r}
 # The age distribution of the deceased was analyzed
@@ -561,29 +645,18 @@ ggplot(data.frame(Sex = names(sex_distribution), Count = as.integer(sex_distribu
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-洪水相关的死亡年龄分布表明：
+The distribution of flood-related age of death shows that: the average age was about 44 years. Deaths occur at all ages, but are particularly common among middle-aged and elderly people. The oldest victim was 86 years old, while the youngest was 1 year old.
 
--   平均年龄约为 44 岁。
+Gender distribution shows: the male death toll was 114. The number of female deaths was 92. From this, we can see that slightly more men than women died in flood-related deaths.
 
--   死亡人数在各个年龄段都有发生，但特别是在中老年人群中较为常见。
+Combining statistics on place of death, age and sex, it can be inferred that middle-aged and older men and people in vehicles or in water are at higher risk of injury or death during flood events.
 
--   最年长的受害者年龄为 86 岁，而最年轻的为 1 岁。
-
-性别分布显示：
-
--   男性死亡人数为 114 人。
-
--   女性死亡人数为 92 人。
-
-由此我们可以看出，在洪水相关的死亡事件中，男性的死亡人数略多于女性。
-
-结合死亡地点、年龄和性别的统计数据，可以推断在洪水事件中，中老年男性和在车辆内或在水中的人群伤亡风险较高。
-
-### 洪水原因分析
+### 6. Analysis of flood cause
 
 ```{r}
 # Analyze the flood cause in the 'FLOOD_CAUSE' column
 flood_causes <- flood_details |> 
+  filter(FLOOD_CAUSE != "", !is.na(FLOOD_CAUSE)) |> 
   count(FLOOD_CAUSE) |> 
   arrange(desc(n))
 
@@ -599,30 +672,31 @@ ggplot(flood_causes, aes(x = "", y = n, fill = FLOOD_CAUSE)) +
   theme(plot.title = element_text(hjust = 0.5))
 ```
 
-洪水原因的分析结果如下：
+The analysis results of flood causes are as follows:
 
--   重雨（Heavy Rain）: 12373次
+-   Heavy Rain: 12373 times
 
--   重雨/热带系统（Heavy Rain / Tropical System）: 293次
+-   Heavy Rain/Tropical System: 293 times
 
--   重雨/雪融（Heavy Rain / Snow Melt）: 248次
+-   Heavy Rain/Snow Melt: 248 times
 
--   重雨/烧毁区域（Heavy Rain / Burn Area）: 139次
+-   Heavy Rain/Burn Area: 139 times
 
--   冰堵（Ice Jam）: 27次
+-   Ice Jam: 27 times
 
--   大坝/堤防破裂（Dam / Levee Break）: 17次
+-   Dam/Levee Break: 17 times
 
--   计划中的大坝放水（Planned Dam Release）: 4次
+-   Planned Dam Release: 4 times
 
-由此可见，最常见的洪水原因是重雨，其次是与热带系统结合的重雨。其他原因相比之下较少。
+The most common cause of flooding is heavy rain, followed by heavy rain combined with tropical systems.
 
-### 不同县受洪水影响的损失
+### 7. Community impact analysis
 
 ```{r}
 #| warning: false
+#| message: false
 # Aggregate the total property damage by county or NWS Public Forecast Zone
-damage_data <- flood_details |> 
+damage_data <- flood_details_us |> 
   group_by(CZ_NAME) |> 
   summarize(Total_Damage = sum(DAMAGE_PROPERTY, na.rm = TRUE),
             Avg_Lat = mean(BEGIN_LAT, na.rm = TRUE),
@@ -649,5 +723,63 @@ map <- leaflet(damage_data) |>
             labFormat = labelFormat(prefix = "$"))
 
 # Print the map
-print(map)
+map
 ```
+
+This interactive map shows the economic damage caused by flood events in various U.S. counties. The larger the circle, the greater the economic loss.
+
+t is clear from the graph that the eastern, southern and central counties have suffered huge economic losses caused by floods and these areas need more financial support to withstand flood disasters.
+
+## Conclusion
+
+Based on the multi-angle analysis of flood data, we can draw the following comprehensive conclusions:
+
+1.  **Flood frequency and seasonality:**
+
+    Flood events are not evenly distributed throughout the year, showing a clear seasonal pattern. This suggests that in some seasons, such as summer, flood events are more frequent.
+
+2.  **Flood duration:**
+
+    The duration of flood events varies greatly, from a few hours to a few days, but most events end within a day. This means that although some floods recede quickly, significant impacts and damage are still possible.
+
+3.  **Geographical distribution:**
+
+    Flood events are widely distributed throughout the United States, but are particularly concentrated in the eastern and central regions. This may be related to more frequent rainfall events and specific topographic conditions in those areas.
+
+4.  **State-level analysis:**
+
+    Flooding events are unevenly distributed across states, with some states such as Virginia, Missouri, and Texas experiencing particularly frequent flooding events. This may reflect regional variations in climate and topographical conditions.
+
+5.  **Economic loss:**
+
+    The floods have caused huge economic damage to property and crops, almost running into billions of dollars. This highlights the importance of implementing effective flood management measures and providing adequate financial support.
+
+6.  **Casualties:**
+
+    The number of direct and indirect deaths caused by flooding shows that flooding is a serious public safety problem. This data can help policymakers prioritize where to implement more effective early warning systems and emergency response measures.
+
+7.  **Types and causes of floods:**
+
+    Different types of flood events occur at different frequencies in different areas. Heavy rain is the main cause of flooding, but other factors such as heavy rain/tropical system and heavy rain/snow melttropical storms are also important.
+
+8.  **Community impact:**
+
+    By analyzing the economic losses and casualties, we can infer that the floods have had a profound impact on some communities, especially in areas that are poor or lack adequate resources for effective flood protection. As a result, these areas are in greater need of federal funding.
+
+## Reference
+
+1.  [NOAA Storm Events Database](https://www.ncdc.noaa.gov/stormevents/ftp.jsp)
+
+2.  [Disaster Declarations Summaries - v2](https://www.fema.gov/openfema-data-page/disaster-declarations-summaries-v2)
+
+3.  [FEMA Web Disaster Summaries - v1](https://www.fema.gov/openfema-data-page/fema-web-disaster-summaries-v1)
+
+4.  [FEMA Datasets](https://www.fema.gov/about/openfema/data-sets)
+
+5.  [FEMA Flood Maps](https://www.fema.gov/flood-maps)
+
+6.  [Storm Data Bulk Data Format](https://www.ncei.noaa.gov/pub/data/swdi/stormevents/csvfiles/Storm-Data-Bulk-csv-Format.pdf)
+
+7.  [NOAA Help](https://www.ncei.noaa.gov/contact)
+
+8.  [rfema](https://docs.ropensci.org/rfema/)
