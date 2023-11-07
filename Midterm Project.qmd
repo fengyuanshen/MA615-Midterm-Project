@@ -728,7 +728,7 @@ map
 
 This interactive map shows the economic damage caused by flood events in various U.S. counties. The larger the circle, the greater the economic loss.
 
-t is clear from the graph that the eastern, southern and central counties have suffered huge economic losses caused by floods and these areas need more financial support to withstand flood disasters.
+It is clear from the graph that the eastern, southern and central counties have suffered huge economic losses caused by floods and these areas need more financial support to withstand flood disasters.
 
 ## Conclusion
 
